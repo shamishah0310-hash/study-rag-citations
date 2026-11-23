@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Study RAG with Page Citations</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-[#070a11] text-slate-100 min-h-screen flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
+
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <i data-lucide="file-search" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <span class="font-bold text-lg text-white">Study RAG with Citations</span>
+          <span class="ml-2 px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">Anti-Hallucination</span>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2 text-xs text-slate-400">
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span>Page Vector Index Active</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <!-- Left: PDF Ingestion (4 cols) -->
+    <div class="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col space-y-4">
+      <h3 class="text-xs font-semibold text-slate-300 flex items-center gap-2">
+        <i data-lucide="file-up" class="w-4 h-4 text-emerald-400"></i> PDF Ingestion
+      </h3>
+
+      <div class="border-2 border-dashed border-slate-700 hover:border-emerald-500/50 rounded-xl p-6 text-center transition-all bg-slate-850/50 flex flex-col items-center justify-center space-y-2 cursor-pointer" onclick="document.getElementById('pdf-file').click()">
+        <i data-lucide="file-text" class="w-8 h-8 text-emerald-400/80"></i>
+        <div class="text-xs font-medium text-slate-200">Click or drop study PDF</div>
+        <div class="text-[11px] text-slate-500">Indexes page numbers & chunk embeddings</div>
+        <input type="file" id="pdf-file" accept=".pdf" class="hidden" onchange="uploadPDF(event)">
+      </div>
+
+      <div class="bg-slate-800/60 rounded-xl p-3.5 border border-slate-700 space-y-2 text-xs">
+        <div class="flex justify-between text-slate-400"><span>Indexed Chunks:</span><span id="stat-chunks" class="font-semibold text-emerald-400">0</span></div>
+        <div class="flex justify-between text-slate-400"><span>Guardrail:</span><span class="font-semibold text-amber-400">Strict Refusal if Missing</span></div>
+      </div>
+
+      <button onclick="clearIndex()" class="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 self-start pt-1">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear Indexed Documents
+      </button>
+    </div>
+
+    <!-- Right: QA with Verifiable Citations (8 cols) -->
+    <div class="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col space-y-4">
+      <div id="chat-box" class="flex-1 overflow-y-auto space-y-4 min-h-[380px] max-h-[480px] p-2">
+        <div class="p-4 rounded-xl bg-slate-800/70 border border-slate-700 text-xs text-slate-300 space-y-1.5">
+          <div class="font-semibold text-emerald-400 flex items-center gap-1.5">
+            <i data-lucide="shield-check" class="w-4 h-4"></i> Verifiable Citations Active
+          </div>
+          <p>Upload a course PDF on the left. All answers are strictly anchored to verified excerpts with clickable <span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono text-[10px]">[Page X]</span> tags.</p>
+        </div>
+      </div>
+
+      <div class="relative">
+        <input type="text" id="query-input" onkeydown="if(event.key==='Enter') sendQuery()" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 pr-24" placeholder="Ask a question about your documents...">
+        <button onclick="sendQuery()" id="ask-btn" class="absolute right-2 top-2 bottom-2 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium flex items-center gap-1 transition-all">
+          <i data-lucide="send" class="w-3.5 h-3.5"></i> Ask
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    lucide.createIcons();
+
+    async function uploadPDF(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const fd = new FormData();
+      fd.append('file', file);
+      const chat = document.getElementById('chat-box');
+      chat.innerHTML += `<div class="p-3 rounded-xl bg-slate-800 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2"><span class="animate-spin">🌀</span> Ingesting and embedding '${file.name}' with page numbers...</div>`;
+
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        document.getElementById('stat-chunks').textContent = data.total_chunks;
+        chat.innerHTML += `<div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300">✓ Indexed <strong>${file.name}</strong> (${data.pages} pages, ${data.chunks} chunks).</div>`;
+      } catch (e) {
+        alert("Upload error: " + e);
+      }
+    }
+
+    async function sendQuery() {
+      const q = document.getElementById('query-input').value.trim();
+      if (!q) return;
+      document.getElementById('query-input').value = "";
+
+      const chat = document.getElementById('chat-box');
+      chat.innerHTML += `<div class="p-3 rounded-xl bg-slate-800 text-xs text-white max-w-[80%] self-end ml-auto"><strong>You:</strong> ${q}</div>`;
+      const btn = document.getElementById('ask-btn');
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: q, provider: 'groq' })
+        });
+        const d = await res.json();
+
+        let citHtml = "";
+        if (d.citations && d.citations.length) {
+          citHtml = `
+            <div class="mt-2 pt-2 border-t border-slate-700 flex flex-wrap gap-1.5">
+              <span class="text-[10px] text-slate-400 font-semibold flex items-center gap-1">Citations:</span>
+              ${d.citations.map(c => `
+                <button onclick="alert('Page ${c.page} excerpt:\\n\\n${c.snippet.replace(/'/g, "\\'")}')" class="px-2 py-0.5 rounded bg-slate-900 border border-emerald-500/40 hover:bg-emerald-500/20 text-emerald-300 font-mono text-[10px]">
+                  Page ${c.page}
+                </button>
+              `).join('')}
+            </div>
+          `;
+        }
+
+        const boxClass = d.refusal ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' : 'bg-slate-800 border-slate-700 text-slate-200';
+        chat.innerHTML += `
+          <div class="p-4 rounded-xl ${boxClass} text-xs space-y-1.5 border">
+            <div class="font-semibold text-emerald-400 flex items-center justify-between">
+              <span>Assistant</span><span class="text-[10px] text-slate-500">${d.latency}s</span>
+            </div>
+            <div class="leading-relaxed whitespace-pre-wrap">${d.answer}</div>
+            ${citHtml}
+          </div>
+        `;
+        chat.scrollTop = chat.scrollHeight;
+      } catch (e) {
+        alert("Query failed: " + e);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function clearIndex() {
+      if (!confirm("Clear all indexed documents?")) return;
+      await fetch('/api/clear', { method: 'DELETE' });
+      document.getElementById('stat-chunks').textContent = "0";
+      document.getElementById('chat-box').innerHTML = `<div class="p-3 text-xs text-slate-500">Documents cleared.</div>`;
+    }
+  </script>
+</body>
+</html>

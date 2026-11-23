@@ -1,0 +1,35 @@
+app:
+  name: "Study RAG with Citations"
+  version: "1.0.0"
+  host: "127.0.0.1"
+  port: 8083
+
+default_provider: "groq"
+default_model: "llama-3.3-70b-versatile"
+
+rag:
+  chunk_size: 400
+  chunk_overlap: 60
+  top_k: 4
+  similarity_threshold: 0.35
+  embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+  refusal_message: "Not found in your documents. The uploaded documents do not contain sufficient verified evidence to answer this question."
+
+providers:
+  mock:
+    name: "Mock Engine (Offline Demo)"
+    base_url: "mock://local"
+    api_key: "not-needed"
+    enabled: true
+    models:
+      - id: "mock-fast-7b"
+        name: "Mock Fast 7B"
+  groq:
+    name: "Groq Cloud"
+    base_url: "https://api.groq.com/openai/v1"
+    api_key_env: "GROQ_API_KEY"
+    api_key: ""
+    enabled: true
+    models:
+      - id: "llama-3.3-70b-versatile"
+        name: "Llama 3.3 70B Versatile"

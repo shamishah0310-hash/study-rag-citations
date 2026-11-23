@@ -1,0 +1,28 @@
+# Environment and API keys
+.env
+*.env
+token.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+venv/
+.venv/
+env/
+
+# Data and models
+data/
+models/
+uploads/
+*.onnx
+*.wav
+*.mp3
+*.bin
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
